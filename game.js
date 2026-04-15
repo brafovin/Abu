@@ -23,16 +23,35 @@
   const SLIDE_TIME    = 45;     // Frames
   const LANE_SWITCH_SPEED = 0.18;
 
-  const START_SPEED   = 4;
-  const MAX_SPEED     = 12;
-  const SPEED_RAMP    = 0.0005;
+  // Basis-Geschwindigkeit. Wird pro Run abhängig vom Wallet skaliert.
+  const BASE_START_SPEED = 4;
+  const BASE_MAX_SPEED   = 12;
+  const SPEED_RAMP       = 0.0005;
+
+  // Wallet -> Geschwindigkeits-Bonus
+  // Mehr Münzen auf dem Konto -> schnelleres Spiel (bis Cap)
+  const WALLET_START_DIVISOR = 150; // alle 150 Münzen +1 Start-Speed
+  const WALLET_MAX_DIVISOR   = 100; // alle 100 Münzen +1 Max-Speed
+  const WALLET_START_CAP     = 6;
+  const WALLET_MAX_CAP       = 10;
+
+  // effektive Werte (werden in startGame() berechnet)
+  let effStartSpeed = BASE_START_SPEED;
+  let effMaxSpeed   = BASE_MAX_SPEED;
 
   const SPAWN_GAP_BASE = 95;    // Frames zwischen Spawns (near-Bereich)
+
+  function computeSpeeds() {
+    const startBonus = Math.min(WALLET_START_CAP, wallet / WALLET_START_DIVISOR);
+    const maxBonus   = Math.min(WALLET_MAX_CAP,   wallet / WALLET_MAX_DIVISOR);
+    effStartSpeed = BASE_START_SPEED + startBonus;
+    effMaxSpeed   = BASE_MAX_SPEED   + maxBonus;
+  }
 
   // ---------- Spielzustand ----------
   let state = "menu"; // menu | playing | dead | shop
   let frame = 0;
-  let speed = START_SPEED;
+  let speed = BASE_START_SPEED;
   let distance = 0;
   let score = 0;
   let coinsCollected = 0;
@@ -219,6 +238,8 @@
 
   const walletAmountEl = document.getElementById("wallet-amount");
   const shopWalletEl   = document.getElementById("shop-wallet");
+  const walletHudEl    = document.getElementById("wallet-hud-amount");
+  const speedBarFill   = document.getElementById("speed-bar-fill");
   const startScreenEl  = startScreen;
   const shopScreen     = document.getElementById("shop-screen");
   const shopGrid       = document.getElementById("shop-grid");
@@ -229,7 +250,23 @@
   document.getElementById("gameover-shop-btn").addEventListener("click", openShop);
   document.getElementById("shop-back-btn").addEventListener("click", closeShop);
   bestEl.textContent = best;
-  walletAmountEl.textContent = wallet;
+
+  function updateWalletHud() {
+    walletAmountEl.textContent = wallet;
+    walletHudEl.textContent = wallet;
+  }
+
+  function updateSpeedHud() {
+    // Fülle zwischen BASE_START_SPEED (leer) und BASE_MAX_SPEED + WALLET_MAX_CAP (voll)
+    const maxPossible = BASE_MAX_SPEED + WALLET_MAX_CAP;
+    const pct = Math.max(0, Math.min(100, (speed / maxPossible) * 100));
+    speedBarFill.style.width = pct + "%";
+  }
+
+  updateWalletHud();
+  computeSpeeds();
+  speed = effStartSpeed;
+  updateSpeedHud();
 
   // ---------- Shop ----------
   let shopCameFrom = "menu"; // "menu" | "dead"
@@ -252,7 +289,9 @@
       state = "menu";
       startScreen.classList.remove("hidden");
     }
-    walletAmountEl.textContent = wallet;
+    updateWalletHud();
+    computeSpeeds();
+    updateSpeedHud();
   }
 
   function renderShop() {
@@ -307,6 +346,7 @@
             ownedSkins.push(skin.id);
             selectedSkin = skin.id;
             saveShop();
+            updateWalletHud();
             renderShop();
           }
         });
@@ -339,8 +379,9 @@
 
   function startGame() {
     state = "playing";
+    computeSpeeds();
     frame = 0;
-    speed = START_SPEED;
+    speed = effStartSpeed;
     distance = 0;
     score = 0;
     coinsCollected = 0;
@@ -370,6 +411,7 @@
     }
     wallet += coinsCollected;
     saveShop();
+    updateWalletHud();
     finalScore.textContent = score;
     finalCoins.textContent = coinsCollected;
     finalBest.textContent = best;
@@ -454,9 +496,10 @@
     }
 
     // Speed ramp
-    speed = Math.min(MAX_SPEED, START_SPEED + distance * SPEED_RAMP);
+    speed = Math.min(effMaxSpeed, effStartSpeed + distance * SPEED_RAMP);
     distance += speed;
     score = Math.floor(distance / 10);
+    updateSpeedHud();
 
     // smooth lane switch
     player.laneFloat += (player.lane - player.laneFloat) * LANE_SWITCH_SPEED;
