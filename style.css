@@ -80,6 +80,21 @@ body {
   text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
 }
 
+.hud-multi-box {
+  border-color: #ff6bff !important;
+  box-shadow: 0 0 12px rgba(255, 107, 255, 0.4);
+}
+
+.hud-multi-box .hud-label {
+  color: #ff6bff !important;
+}
+
+#multi {
+  color: #ff6bff;
+  text-shadow: 0 0 10px rgba(255, 107, 255, 0.8), 0 2px 0 rgba(0,0,0,0.5);
+  transition: transform 0.15s;
+}
+
 #wallet-hud {
   position: absolute;
   top: 78px;

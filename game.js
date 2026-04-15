@@ -55,6 +55,13 @@
   let best = parseInt(localStorage.getItem("er_best") || "0", 10);
   let wallet = parseInt(localStorage.getItem("er_wallet") || "0", 10);
 
+  // Multiplikator (wie in Subway Surfers)
+  const MULTI_STEPS = [1, 2, 3, 5, 10];
+  const MULTI_THRESHOLDS = [0, 500, 1500, 3500, 8000]; // Distanz-Schwellen
+  let multiplier = 1;
+  let multiFlash = 0; // Frame-Timer für Auffleucht-Animation bei Levelup
+  let magnetTime = 0; // Magnet-Powerup Timer
+
   // ---------- Skins ----------
   // Jeder Skin hat eine draw(ctx, x, y, w, h, s, frame, sliding) Funktion
   // die den Charakter in die übergebene Box rendert.
@@ -260,7 +267,7 @@
 
   // ---------- DOM Screens ----------
   const scoreEl = document.getElementById("score");
-  const coinsEl = document.getElementById("coins");
+  const coinsEl = null; // Coins jetzt im Wallet-HUD
   const bestEl  = document.getElementById("best");
   const startScreen = document.getElementById("start-screen");
   const gameOverScreen = document.getElementById("game-over");
@@ -272,6 +279,7 @@
   const shopWalletEl   = document.getElementById("shop-wallet");
   const walletHudEl    = document.getElementById("wallet-hud-amount");
   const speedBarFill   = document.getElementById("speed-bar-fill");
+  const multiEl        = document.getElementById("multi");
   const startScreenEl  = startScreen;
   const shopScreen     = document.getElementById("shop-screen");
   const shopGrid       = document.getElementById("shop-grid");
@@ -433,6 +441,9 @@
     player.slideTimer = 0;
     player.hurtFlash = 0;
     player.jetpackTime = 0;
+    multiplier = 1;
+    magnetTime = 0;
+    multiFlash = 0;
 
     startScreen.classList.add("hidden");
     gameOverScreen.classList.add("hidden");
@@ -460,50 +471,86 @@
 
   // ---------- Spawner ----------
   function spawnRow() {
-    // Manche Reihen haben 1-2 Hindernisse, mindestens eine freie Spur
+    const roll = Math.random();
+
+    // 12% Chance: Zug-Hindernis (belegt 2 Spuren)
+    if (roll < 0.12) {
+      spawnTrain();
+      return;
+    }
+
+    // Normale Hindernisse
     const used = new Set();
     const numObstacles = Math.random() < 0.4 ? 2 : 1;
     for (let i = 0; i < numObstacles; i++) {
       const lane = randi(0, 2);
       if (used.has(lane)) continue;
-      // nie alle 3 Spuren blockieren
       if (used.size >= 2) break;
       used.add(lane);
 
       const r = Math.random();
       let type;
-      if (r < 0.4) type = "barrier";   // drüber springen
-      else if (r < 0.7) type = "hurdle"; // drüber rutschen (hoch oben)
-      else type = "block";             // seitlich ausweichen (groß)
+      if (r < 0.38) type = "barrier";
+      else if (r < 0.68) type = "hurdle";
+      else type = "block";
 
       obstacles.push({ lane, z: 1.0, type, hit: false });
     }
 
-    // Münzen in freien Spuren
-    for (let lane = 0; lane < LANES; lane++) {
-      if (used.has(lane)) continue;
-      if (Math.random() < 0.55) {
-        // Reihe aus 3-5 Münzen
-        const cnt = randi(3, 5);
-        for (let k = 0; k < cnt; k++) {
-          coins.push({
-            lane,
-            z: 1.0 + k * 0.04,
-            y: Math.random() < 0.15 ? 50 : 0, // manche in der Luft
-            taken: false,
-          });
+    // Münzen mit Bogenmuster
+    const coinRoll = Math.random();
+    if (coinRoll < 0.3) {
+      // Bogen in einer freien Spur (Sprungbogen)
+      const freeLane = [0, 1, 2].find((l) => !used.has(l));
+      if (freeLane !== undefined) spawnCoinArc(freeLane, 8);
+    } else if (coinRoll < 0.5) {
+      // Zickzack zwischen 2 freien Spuren
+      const free = [0, 1, 2].filter((l) => !used.has(l));
+      if (free.length >= 2) spawnCoinZigzag(free[0], free[1], 6);
+    } else {
+      // Gerade Reihe in jeder freien Spur
+      for (let lane = 0; lane < LANES; lane++) {
+        if (used.has(lane)) continue;
+        if (Math.random() < 0.6) {
+          const cnt = randi(3, 6);
+          for (let k = 0; k < cnt; k++) {
+            coins.push({ lane, z: 1.0 + k * 0.04, y: 0, taken: false });
+          }
         }
       }
     }
 
-    // Seltenes Jetpack-Powerup (~4% Chance pro Reihe)
-    if (Math.random() < 0.04) {
-      const freeLanes = [];
-      for (let l = 0; l < LANES; l++) if (!used.has(l)) freeLanes.push(l);
+    // Powerups (~6% Jetpack, ~4% Magnet)
+    if (Math.random() < 0.1) {
+      const freeLanes = [0, 1, 2].filter((l) => !used.has(l));
       if (freeLanes.length > 0) {
         const lane = freeLanes[randi(0, freeLanes.length - 1)];
-        powerups.push({ lane, z: 1.0, type: "jetpack", taken: false });
+        const type = Math.random() < 0.6 ? "jetpack" : "magnet";
+        powerups.push({ lane, z: 1.0, type, taken: false });
       }
+    }
+  }
+
+  function spawnTrain() {
+    // Zug belegt 2 benachbarte Spuren, 1 Spur ist frei
+    const startLane = randi(0, 1); // 0→blockiert 0+1, 1→blockiert 1+2
+    const freeLane  = startLane === 0 ? 2 : 0;
+    obstacles.push({ lanes: [startLane, startLane + 1], z: 1.0, type: "train", hit: false });
+    // Münzen in der freien Spur -> Spieler gelockt
+    spawnCoinArc(freeLane, 6);
+  }
+
+  function spawnCoinArc(lane, count) {
+    for (let k = 0; k < count; k++) {
+      const t = k / (count - 1);
+      const arcY = Math.sin(t * Math.PI) * 90;
+      coins.push({ lane, z: 1.0 + k * 0.048, y: arcY, taken: false });
+    }
+  }
+
+  function spawnCoinZigzag(laneA, laneB, count) {
+    for (let k = 0; k < count; k++) {
+      coins.push({ lane: k % 2 === 0 ? laneA : laneB, z: 1.0 + k * 0.05, y: 0, taken: false });
     }
   }
 
@@ -544,8 +591,39 @@
     // Speed ramp
     speed = Math.min(effMaxSpeed, effStartSpeed + distance * SPEED_RAMP);
     distance += speed;
-    score = Math.floor(distance / 10);
+
+    // Multiplikator: steigt mit Distanz
+    let newMultiIdx = 0;
+    for (let i = MULTI_THRESHOLDS.length - 1; i >= 0; i--) {
+      if (distance >= MULTI_THRESHOLDS[i]) { newMultiIdx = i; break; }
+    }
+    const newMulti = MULTI_STEPS[newMultiIdx];
+    if (newMulti > multiplier) {
+      multiplier = newMulti;
+      multiFlash = 50;
+    }
+
+    score = Math.floor(distance / 10) * multiplier;
     updateSpeedHud();
+
+    // Magnet-Powerup: zieht Münzen heran
+    if (magnetTime > 0) {
+      magnetTime--;
+      const MAGNET_RADIUS_Z = 0.25;
+      const pp = project(0.05, (player.laneFloat - 1), player.y + 20);
+      for (const c of coins) {
+        if (c.taken) continue;
+        if (Math.abs(c.z - 0.05) < MAGNET_RADIUS_Z) {
+          c.z -= (c.z - 0.05) * 0.07;
+          // Münze zur Spieler-Spur saugen
+          if (c.lane !== player.lane) {
+            // verändert lane nicht direkt aber lässt Kollision auch bei benachbarter Spur zu
+          }
+        }
+      }
+    }
+
+    if (multiFlash > 0) multiFlash--;
 
     // smooth lane switch
     player.laneFloat += (player.lane - player.laneFloat) * LANE_SWITCH_SPEED;
@@ -640,8 +718,11 @@
     updateParticles();
 
     // HUD
-    scoreEl.textContent = score;
-    coinsEl.textContent = coinsCollected;
+    scoreEl.textContent = score.toLocaleString();
+    if (multiEl) {
+      multiEl.textContent = "x" + multiplier;
+      multiEl.style.transform = multiFlash > 0 ? `scale(${1 + multiFlash * 0.02})` : "scale(1)";
+    }
   }
 
   function updateParticles() {
@@ -666,7 +747,9 @@
       if (o.hit) continue;
       if (invincible) continue;
       if (Math.abs(o.z - playerZ) > Z_TOL) continue;
-      if (o.lane !== playerLane) continue;
+      // Zug: mehrere Spuren
+      const occupiedLane = o.lanes ? o.lanes.includes(playerLane) : o.lane === playerLane;
+      if (!occupiedLane) continue;
 
       // Kollision je nach Typ
       if (o.type === "barrier") {
@@ -685,15 +768,16 @@
       return;
     }
 
+    const magnetic = magnetTime > 0;
     for (const c of coins) {
       if (c.taken) continue;
-      if (Math.abs(c.z - playerZ) > Z_TOL) continue;
-      if (c.lane !== playerLane && !invincible) continue;
-      // wenn Münze in der Luft, muss gesprungen sein (Jetpack kassiert alle)
-      if (c.y > 30 && player.y < 30 && !invincible) continue;
+      const zClose = Math.abs(c.z - playerZ) <= Z_TOL;
+      const laneMatch = c.lane === playerLane || invincible || (magnetic && Math.abs(c.lane - playerLane) <= 1);
+      if (!zClose || !laneMatch) continue;
+      if (c.y > 30 && player.y < 30 && !invincible && !magnetic) continue;
       c.taken = true;
       coinsCollected++;
-      score += 5;
+      score += 5 * multiplier;
       const pr = project(c.z, LANE_X[c.lane], c.y + 30);
       spawnCoinSparkle(pr.x, pr.y);
     }
@@ -708,6 +792,10 @@
         player.jetpackTime = JETPACK_DURATION;
         const pr = project(pu.z, LANE_X[pu.lane], 80);
         spawnExplosion(pr.x, pr.y);
+      } else if (pu.type === "magnet") {
+        magnetTime = 400; // ~6.5 Sek
+        const pr = project(pu.z, LANE_X[pu.lane], 80);
+        spawnCoinSparkle(pr.x, pr.y);
       }
     }
   }
@@ -1014,6 +1102,8 @@
   }
 
   function drawObstacle(o) {
+    if (o.type === "train") { drawTrainObstacle(o); return; }
+
     const p = project(o.z, LANE_X[o.lane]);
     const s = p.scale;
     if (s <= 0) return;
@@ -1074,6 +1164,67 @@
           );
         }
       }
+    }
+  }
+
+  function drawTrainObstacle(o) {
+    // Zug überbrückt 2 Spuren
+    const pLeft  = project(o.z, LANE_X[o.lanes[0]]);
+    const pRight = project(o.z, LANE_X[o.lanes[1]]);
+    const s = pLeft.scale;
+    if (s <= 0) return;
+
+    const lw = (ROAD_WIDTH_NEAR / LANES) * s;
+    const trainW = (pRight.x - pLeft.x) + lw;
+    const trainH = 120 * s;
+    const tx = pLeft.x - lw * 0.5;
+    const ty = pLeft.y - trainH;
+
+    // Hauptkörper
+    const grad = ctx.createLinearGradient(tx, ty, tx, ty + trainH);
+    grad.addColorStop(0, "#d94a2a");
+    grad.addColorStop(0.4, "#b83020");
+    grad.addColorStop(1, "#6a1010");
+    ctx.fillStyle = grad;
+    ctx.fillRect(tx, ty, trainW, trainH);
+
+    // Dach-Streifen
+    ctx.fillStyle = "#ff9a3c";
+    ctx.fillRect(tx, ty, trainW, 8 * s);
+
+    // Silber-Unterkante
+    ctx.fillStyle = "#aab4c4";
+    ctx.fillRect(tx, ty + trainH - 8 * s, trainW, 8 * s);
+
+    // Fensterreihe
+    ctx.fillStyle = "#9fd8ff";
+    const numWin = Math.floor(trainW / (26 * s));
+    for (let i = 0; i < numWin; i++) {
+      const wx = tx + 6 * s + i * (trainW - 12 * s) / numWin;
+      ctx.fillRect(wx, ty + 14 * s, 16 * s, 22 * s);
+      ctx.strokeStyle = "#1a1a2a";
+      ctx.lineWidth = Math.max(1, s);
+      ctx.strokeRect(wx, ty + 14 * s, 16 * s, 22 * s);
+    }
+
+    // Mittlere Trennlinie (Wagen-Übergang)
+    ctx.fillStyle = "#1a1a2a";
+    ctx.fillRect(pLeft.x + lw * 0.45, ty + 8 * s, 3 * s, trainH - 16 * s);
+
+    // Warnstreifen unten
+    const stripeW = 12 * s;
+    for (let i = 0; i < Math.floor(trainW / stripeW); i++) {
+      ctx.fillStyle = i % 2 === 0 ? "#ffd86b" : "#000";
+      ctx.fillRect(tx + i * stripeW, ty + trainH - 7 * s, stripeW, 5 * s);
+    }
+
+    // Räder
+    const wheelY = ty + trainH - 2 * s;
+    ctx.fillStyle = "#1a1a2a";
+    for (const wx of [tx + 10 * s, tx + trainW * 0.4, tx + trainW * 0.6, tx + trainW - 10 * s]) {
+      ctx.beginPath();
+      ctx.arc(wx, wheelY, 5 * s, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 
@@ -1139,6 +1290,31 @@
       ctx.lineTo(p.x + 8 * s, p.y + th / 2);
       ctx.closePath();
       ctx.fill();
+    } else if (pu.type === "magnet") {
+      const pulse = Math.sin(frame * 0.18) * 0.2 + 1;
+      // Halo
+      ctx.fillStyle = "rgba(255,107,255,0.2)";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 26 * s * pulse, 0, Math.PI * 2);
+      ctx.fill();
+      // Magnet-Symbol (U-Form)
+      const r = 14 * s;
+      ctx.strokeStyle = "#ff6bff";
+      ctx.lineWidth = 5 * s;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r, Math.PI, 0);
+      ctx.stroke();
+      // Pole
+      ctx.fillStyle = "#ff6bff";
+      ctx.fillRect(p.x - r - 2 * s, p.y, 4 * s, 8 * s);
+      ctx.fillStyle = "#4affff";
+      ctx.fillRect(p.x + r - 2 * s, p.y, 4 * s, 8 * s);
+      // Pole-Caps
+      ctx.fillStyle = "#ff6bff";
+      ctx.fillRect(p.x - r - 3 * s, p.y + 6 * s, 6 * s, 3 * s);
+      ctx.fillStyle = "#4affff";
+      ctx.fillRect(p.x + r - 3 * s, p.y + 6 * s, 6 * s, 3 * s);
     }
   }
 
@@ -1749,7 +1925,67 @@
     }
 
     drawPlayer();
+    drawMagnetAura();
     drawParticles();
+    drawSpeedLines();
+    drawMultiPopup();
+  }
+
+  function drawSpeedLines() {
+    if (state !== "playing") return;
+    const intensity = Math.max(0, (speed - effStartSpeed - 2) / (effMaxSpeed - effStartSpeed));
+    if (intensity <= 0) return;
+    ctx.globalAlpha = intensity * 0.35;
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 1.5;
+    const count = Math.floor(intensity * 14) + 4;
+    for (let i = 0; i < count; i++) {
+      const x = (i * 73 + frame * (4 + i * 0.4)) % W;
+      const y1 = HORIZON_Y + rand(0, (H - HORIZON_Y) * 0.8);
+      const y2 = y1 + rand(12, 40) * intensity;
+      ctx.beginPath();
+      ctx.moveTo(x, y1);
+      ctx.lineTo(x + rand(-4, 4), y2);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawMagnetAura() {
+    if (magnetTime <= 0) return;
+    const p = project(0.05, (player.laneFloat - 1), player.y + 20);
+    const pulse = Math.sin(frame * 0.2) * 0.15 + 1;
+    const pct = magnetTime / 400;
+    ctx.globalAlpha = 0.3 * pct;
+    ctx.strokeStyle = "#ff6bff";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y - 30, 70 * pulse, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 0.1 * pct;
+    ctx.fillStyle = "#ff6bff";
+    ctx.beginPath();
+    ctx.arc(p.x, p.y - 30, 70 * pulse, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  function drawMultiPopup() {
+    if (multiFlash <= 0) return;
+    const alpha = multiFlash / 50;
+    const scale = 1 + (1 - alpha) * 0.5;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(W / 2, H * 0.38);
+    ctx.scale(scale, scale);
+    ctx.textAlign = "center";
+    ctx.font = `bold ${Math.floor(48 * scale)}px system-ui, sans-serif`;
+    ctx.fillStyle = "#ff6bff";
+    ctx.strokeStyle = "#1a1030";
+    ctx.lineWidth = 4;
+    ctx.strokeText("x" + multiplier + "!", 0, 0);
+    ctx.fillText("x" + multiplier + "!", 0, 0);
+    ctx.restore();
   }
 
   // ---------- Main Loop ----------
