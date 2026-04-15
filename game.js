@@ -18,16 +18,16 @@
   const HORIZON_Y = H * 0.35;
   const FLOOR_Y   = H * 0.92;
 
-  const GRAVITY       = 0.9;
-  const JUMP_POWER    = 17;
-  const SLIDE_TIME    = 38;     // Frames
+  const GRAVITY       = 0.75;
+  const JUMP_POWER    = 16;
+  const SLIDE_TIME    = 45;     // Frames
   const LANE_SWITCH_SPEED = 0.18;
 
-  const START_SPEED   = 8;
-  const MAX_SPEED     = 22;
-  const SPEED_RAMP    = 0.0015;
+  const START_SPEED   = 4;
+  const MAX_SPEED     = 12;
+  const SPEED_RAMP    = 0.0005;
 
-  const SPAWN_GAP_BASE = 70;    // Frames zwischen Spawns (near-Bereich)
+  const SPAWN_GAP_BASE = 95;    // Frames zwischen Spawns (near-Bereich)
 
   // ---------- Spielzustand ----------
   let state = "menu"; // menu | playing | dead
@@ -296,13 +296,13 @@
     if (player.hurtFlash > 0) player.hurtFlash--;
 
     // move obstacles (z -> 0)
-    const zStep = speed * 0.0025;
+    const zStep = speed * 0.0022;
     for (const o of obstacles) o.z -= zStep;
     for (const c of coins)     c.z -= zStep;
 
     // spawn new rows
     spawnTimer -= 1;
-    const gap = Math.max(30, SPAWN_GAP_BASE - Math.floor(distance / 400));
+    const gap = Math.max(55, SPAWN_GAP_BASE - Math.floor(distance / 900));
     if (spawnTimer <= 0) {
       spawnRow();
       spawnTimer = gap + randi(-8, 8);
