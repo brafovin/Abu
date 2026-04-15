@@ -169,3 +169,153 @@ button:active {
   transform: translateY(4px);
   box-shadow: 0 2px 0 #b46a1a, 0 4px 10px rgba(0, 0, 0, 0.5);
 }
+
+.btn-alt {
+  background: linear-gradient(180deg, #6b8bff, #3a4ac8);
+  color: #fff;
+  box-shadow: 0 6px 0 #1a2a8a, 0 10px 20px rgba(0, 0, 0, 0.5);
+}
+
+.btn-alt:active {
+  box-shadow: 0 2px 0 #1a2a8a, 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+
+.btn-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.btn-row button {
+  margin-top: 0;
+  padding: 12px 28px;
+  font-size: 17px;
+}
+
+.wallet-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 216, 107, 0.15);
+  border: 2px solid #ffd86b;
+  padding: 8px 20px;
+  border-radius: 40px;
+  font-size: 22px;
+  font-weight: 800;
+  color: #ffd86b;
+  margin-bottom: 18px;
+  box-shadow: 0 4px 20px rgba(255, 216, 107, 0.25);
+}
+
+.coin-icon {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  background: radial-gradient(circle at 35% 35%, #fff3a0, #ffd86b 50%, #b46a1a);
+  border-radius: 50%;
+  font-size: 0;
+  box-shadow: 0 0 12px rgba(255, 216, 107, 0.7);
+}
+
+.shop-title {
+  margin-bottom: 12px !important;
+}
+
+#shop-screen {
+  justify-content: flex-start;
+  padding-top: 28px;
+  overflow-y: auto;
+}
+
+#shop-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  width: 100%;
+  max-width: 420px;
+  margin: 14px 0 18px;
+}
+
+.skin-card {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.skin-card.owned {
+  border-color: #6b8bff;
+}
+
+.skin-card.selected {
+  border-color: #ffd86b;
+  box-shadow: 0 0 20px rgba(255, 216, 107, 0.4), inset 0 0 20px rgba(255, 216, 107, 0.1);
+  transform: translateY(-2px);
+}
+
+.skin-card canvas {
+  width: 80px;
+  height: 110px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 10px;
+  margin-bottom: 6px;
+}
+
+.skin-name {
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.skin-price {
+  font-size: 12px;
+  color: #ffd86b;
+  font-weight: 700;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: center;
+}
+
+.skin-price .coin-icon {
+  width: 12px;
+  height: 12px;
+  box-shadow: 0 0 6px rgba(255, 216, 107, 0.7);
+}
+
+.skin-btn {
+  margin-top: 0 !important;
+  padding: 6px 14px !important;
+  font-size: 12px !important;
+  letter-spacing: 1px !important;
+  box-shadow: 0 3px 0 #b46a1a, 0 4px 8px rgba(0, 0, 0, 0.5) !important;
+  min-width: 80px;
+}
+
+.skin-btn.owned-btn {
+  background: linear-gradient(180deg, #6b8bff, #3a4ac8);
+  color: #fff;
+  box-shadow: 0 3px 0 #1a2a8a, 0 4px 8px rgba(0, 0, 0, 0.5) !important;
+}
+
+.skin-btn.selected-btn {
+  background: linear-gradient(180deg, #9aff9a, #3aaa3a);
+  color: #0a2a0a;
+  box-shadow: 0 3px 0 #1a5a1a, 0 4px 8px rgba(0, 0, 0, 0.5) !important;
+  cursor: default;
+}
+
+.skin-btn.locked {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(0.4);
+}

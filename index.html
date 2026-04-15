@@ -31,6 +31,10 @@
     <div id="start-screen" class="overlay">
       <h1>ENDLESS<br/>RUNNER</h1>
       <p class="tag">Lauf so weit du kannst!</p>
+      <div class="wallet-display">
+        <span class="coin-icon">●</span>
+        <span id="wallet-amount">0</span>
+      </div>
       <div class="controls">
         <p><b>Steuerung:</b></p>
         <p>← → oder A / D — Spur wechseln</p>
@@ -38,15 +42,32 @@
         <p>↓ / S — Rutschen</p>
         <p class="mobile">Handy: Wische in jede Richtung</p>
       </div>
-      <button id="start-btn">START</button>
+      <div class="btn-row">
+        <button id="start-btn">START</button>
+        <button id="shop-btn" class="btn-alt">SHOP</button>
+      </div>
+    </div>
+
+    <div id="shop-screen" class="overlay hidden">
+      <h1 class="shop-title">SHOP</h1>
+      <div class="wallet-display">
+        <span class="coin-icon">●</span>
+        <span id="shop-wallet">0</span>
+      </div>
+      <div id="shop-grid"></div>
+      <button id="shop-back-btn" class="btn-alt">ZURÜCK</button>
     </div>
 
     <div id="game-over" class="overlay hidden">
       <h1>GAME OVER</h1>
       <p class="final">Score: <span id="final-score">0</span></p>
-      <p class="final">Coins: <span id="final-coins">0</span></p>
+      <p class="final">Coins: +<span id="final-coins">0</span></p>
+      <p class="final">Wallet: <span id="final-wallet">0</span></p>
       <p class="final">Best: <span id="final-best">0</span></p>
-      <button id="restart-btn">NOCHMAL</button>
+      <div class="btn-row">
+        <button id="restart-btn">NOCHMAL</button>
+        <button id="gameover-shop-btn" class="btn-alt">SHOP</button>
+      </div>
     </div>
   </div>
 

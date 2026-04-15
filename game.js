@@ -30,13 +30,77 @@
   const SPAWN_GAP_BASE = 95;    // Frames zwischen Spawns (near-Bereich)
 
   // ---------- Spielzustand ----------
-  let state = "menu"; // menu | playing | dead
+  let state = "menu"; // menu | playing | dead | shop
   let frame = 0;
   let speed = START_SPEED;
   let distance = 0;
   let score = 0;
   let coinsCollected = 0;
   let best = parseInt(localStorage.getItem("er_best") || "0", 10);
+  let wallet = parseInt(localStorage.getItem("er_wallet") || "0", 10);
+
+  // ---------- Skins ----------
+  // Jeder Skin hat eine draw(ctx, x, y, w, h, s, frame, sliding) Funktion
+  // die den Charakter in die übergebene Box rendert.
+  const SKINS = [
+    {
+      id: "runner",
+      name: "Street Runner",
+      price: 0,
+      colors: { body: "#ff6b6b", bodyDark: "#b03030", pants: "#2a2a5a", accent: "#ffd86b" },
+      draw: drawSkinRunner,
+    },
+    {
+      id: "ninja",
+      name: "Schatten-Ninja",
+      price: 80,
+      colors: { body: "#1a1a22", bodyDark: "#000", pants: "#1a1a22", accent: "#e84a4a" },
+      draw: drawSkinNinja,
+    },
+    {
+      id: "astro",
+      name: "Astronaut",
+      price: 150,
+      colors: { body: "#eeeef5", bodyDark: "#9aa0b8", pants: "#eeeef5", accent: "#ff9a3c" },
+      draw: drawSkinAstronaut,
+    },
+    {
+      id: "robot",
+      name: "Mecha Bot",
+      price: 300,
+      colors: { body: "#aab4c4", bodyDark: "#454c60", pants: "#555c6f", accent: "#4affff" },
+      draw: drawSkinRobot,
+    },
+    {
+      id: "knight",
+      name: "Ritter",
+      price: 500,
+      colors: { body: "#c4c9d6", bodyDark: "#6a6f80", pants: "#3a3d4a", accent: "#d94a4a" },
+      draw: drawSkinKnight,
+    },
+    {
+      id: "wizard",
+      name: "Magier",
+      price: 750,
+      colors: { body: "#4a3aa8", bodyDark: "#241a5a", pants: "#241a5a", accent: "#ffd86b" },
+      draw: drawSkinWizard,
+    },
+  ];
+
+  let ownedSkins = JSON.parse(localStorage.getItem("er_owned") || '["runner"]');
+  if (!ownedSkins.includes("runner")) ownedSkins.push("runner");
+  let selectedSkin = localStorage.getItem("er_selected") || "runner";
+  if (!ownedSkins.includes(selectedSkin)) selectedSkin = "runner";
+
+  function saveShop() {
+    localStorage.setItem("er_wallet", wallet);
+    localStorage.setItem("er_owned", JSON.stringify(ownedSkins));
+    localStorage.setItem("er_selected", selectedSkin);
+  }
+
+  function getSkin(id) {
+    return SKINS.find((s) => s.id === id) || SKINS[0];
+  }
 
   const player = {
     lane: 1,           // 0=links, 1=mitte, 2=rechts
@@ -153,9 +217,125 @@
   const finalCoins = document.getElementById("final-coins");
   const finalBest  = document.getElementById("final-best");
 
+  const walletAmountEl = document.getElementById("wallet-amount");
+  const shopWalletEl   = document.getElementById("shop-wallet");
+  const startScreenEl  = startScreen;
+  const shopScreen     = document.getElementById("shop-screen");
+  const shopGrid       = document.getElementById("shop-grid");
+
   document.getElementById("start-btn").addEventListener("click", startGame);
   document.getElementById("restart-btn").addEventListener("click", startGame);
+  document.getElementById("shop-btn").addEventListener("click", openShop);
+  document.getElementById("gameover-shop-btn").addEventListener("click", openShop);
+  document.getElementById("shop-back-btn").addEventListener("click", closeShop);
   bestEl.textContent = best;
+  walletAmountEl.textContent = wallet;
+
+  // ---------- Shop ----------
+  let shopCameFrom = "menu"; // "menu" | "dead"
+
+  function openShop() {
+    shopCameFrom = state === "dead" ? "dead" : "menu";
+    state = "shop";
+    startScreen.classList.add("hidden");
+    gameOverScreen.classList.add("hidden");
+    shopScreen.classList.remove("hidden");
+    renderShop();
+  }
+
+  function closeShop() {
+    shopScreen.classList.add("hidden");
+    if (shopCameFrom === "dead") {
+      state = "dead";
+      gameOverScreen.classList.remove("hidden");
+    } else {
+      state = "menu";
+      startScreen.classList.remove("hidden");
+    }
+    walletAmountEl.textContent = wallet;
+  }
+
+  function renderShop() {
+    shopWalletEl.textContent = wallet;
+    shopGrid.innerHTML = "";
+
+    for (const skin of SKINS) {
+      const owned = ownedSkins.includes(skin.id);
+      const selected = selectedSkin === skin.id;
+
+      const card = document.createElement("div");
+      card.className = "skin-card" + (owned ? " owned" : "") + (selected ? " selected" : "");
+
+      const preview = document.createElement("canvas");
+      preview.width = 80;
+      preview.height = 110;
+      card.appendChild(preview);
+      drawSkinPreview(preview, skin);
+
+      const name = document.createElement("div");
+      name.className = "skin-name";
+      name.textContent = skin.name;
+      card.appendChild(name);
+
+      if (!owned) {
+        const price = document.createElement("div");
+        price.className = "skin-price";
+        price.innerHTML = '<span class="coin-icon"></span>' + skin.price;
+        card.appendChild(price);
+      }
+
+      const btn = document.createElement("button");
+      btn.className = "skin-btn";
+
+      if (selected) {
+        btn.textContent = "AKTIV";
+        btn.classList.add("selected-btn");
+        btn.disabled = true;
+      } else if (owned) {
+        btn.textContent = "WÄHLEN";
+        btn.classList.add("owned-btn");
+        btn.addEventListener("click", () => {
+          selectedSkin = skin.id;
+          saveShop();
+          renderShop();
+        });
+      } else if (wallet >= skin.price) {
+        btn.textContent = "KAUFEN";
+        btn.addEventListener("click", () => {
+          if (wallet >= skin.price) {
+            wallet -= skin.price;
+            ownedSkins.push(skin.id);
+            selectedSkin = skin.id;
+            saveShop();
+            renderShop();
+          }
+        });
+      } else {
+        btn.textContent = "GESPERRT";
+        btn.classList.add("locked");
+        btn.disabled = true;
+      }
+
+      card.appendChild(btn);
+      shopGrid.appendChild(card);
+    }
+  }
+
+  function drawSkinPreview(cv, skin) {
+    const c = cv.getContext("2d");
+    c.clearRect(0, 0, cv.width, cv.height);
+    // Boden-Schatten
+    c.fillStyle = "rgba(0,0,0,0.4)";
+    c.beginPath();
+    c.ellipse(cv.width / 2, cv.height - 10, 25, 4, 0, 0, Math.PI * 2);
+    c.fill();
+    // Box für Skin
+    const w = 46, h = 82;
+    const x = (cv.width - w) / 2;
+    const y = cv.height - h - 8;
+    const s = 1;
+    skin.draw(c, x, y, w, h, s, Math.floor(Date.now() / 30), false);
+  }
 
   function startGame() {
     state = "playing";
@@ -179,6 +359,7 @@
 
     startScreen.classList.add("hidden");
     gameOverScreen.classList.add("hidden");
+    shopScreen.classList.add("hidden");
   }
 
   function gameOver() {
@@ -187,10 +368,14 @@
       best = score;
       localStorage.setItem("er_best", best);
     }
+    wallet += coinsCollected;
+    saveShop();
     finalScore.textContent = score;
     finalCoins.textContent = coinsCollected;
     finalBest.textContent = best;
     bestEl.textContent = best;
+    const walletEl = document.getElementById("final-wallet");
+    if (walletEl) walletEl.textContent = wallet;
     gameOverScreen.classList.remove("hidden");
     spawnExplosion(W / 2, FLOOR_Y - 60);
   }
@@ -587,56 +772,296 @@
       ctx.globalAlpha = 0.4;
     }
 
-    // Beine
-    ctx.fillStyle = "#2a2a5a";
-    if (player.sliding) {
-      ctx.fillRect(x + 4, y + h - 14 * s, w - 8, 14 * s);
-    } else {
-      const legSwing = Math.sin(frame * 0.35) * 6 * s;
-      ctx.fillRect(x + 6,      y + h - 28 * s + legSwing, 14 * s, 28 * s - legSwing);
-      ctx.fillRect(x + w - 20, y + h - 28 * s - legSwing, 14 * s, 28 * s + legSwing);
-    }
-
-    // Körper (Kapuzenjacke)
-    const bodyH = player.sliding ? h * 0.5 : h * 0.55;
-    const bodyY = y + (player.sliding ? 0 : 18 * s);
-    const bodyGrad = ctx.createLinearGradient(0, bodyY, 0, bodyY + bodyH);
-    bodyGrad.addColorStop(0, "#ff6b6b");
-    bodyGrad.addColorStop(1, "#b03030");
-    ctx.fillStyle = bodyGrad;
-    ctx.fillRect(x, bodyY, w, bodyH);
-
-    // Rucksack
-    ctx.fillStyle = "#ffd86b";
-    ctx.fillRect(x + w * 0.25, bodyY + 4 * s, w * 0.5, bodyH * 0.6);
-
-    // Arme (schwingend)
-    if (!player.sliding) {
-      const armSwing = Math.sin(frame * 0.35) * 8 * s;
-      ctx.fillStyle = "#ff6b6b";
-      ctx.fillRect(x - 6 * s, bodyY + 8 * s - armSwing, 10 * s, bodyH * 0.5);
-      ctx.fillRect(x + w - 4 * s, bodyY + 8 * s + armSwing, 10 * s, bodyH * 0.5);
-    }
-
-    // Kopf
-    if (!player.sliding) {
-      ctx.fillStyle = "#f1c27d";
-      ctx.beginPath();
-      ctx.arc(p.x, y + 14 * s, 14 * s, 0, Math.PI * 2);
-      ctx.fill();
-      // Mütze
-      ctx.fillStyle = "#2a2a5a";
-      ctx.beginPath();
-      ctx.arc(p.x, y + 10 * s, 15 * s, Math.PI, 0);
-      ctx.fill();
-      ctx.fillRect(p.x - 15 * s, y + 8 * s, 30 * s, 4 * s);
-      // Augen
-      ctx.fillStyle = "#000";
-      ctx.fillRect(p.x - 6 * s, y + 14 * s, 3 * s, 3 * s);
-      ctx.fillRect(p.x + 3 * s, y + 14 * s, 3 * s, 3 * s);
-    }
+    const skin = getSkin(selectedSkin);
+    skin.draw(ctx, x, y, w, h, s, frame, player.sliding);
 
     ctx.globalAlpha = 1;
+  }
+
+  // ---------- Skin-Zeichnungen ----------
+  // Alle nutzen dieselbe Grundstruktur: Beine, Körper, Arme, Kopf
+  // Eigene Details pro Skin.
+
+  function drawSkinBase(c, x, y, w, h, s, f, sliding, col) {
+    // Beine
+    c.fillStyle = col.pants;
+    if (sliding) {
+      c.fillRect(x + 4, y + h - 14 * s, w - 8, 14 * s);
+    } else {
+      const legSwing = Math.sin(f * 0.35) * 6 * s;
+      c.fillRect(x + 6,      y + h - 28 * s + legSwing, 14 * s, 28 * s - legSwing);
+      c.fillRect(x + w - 20, y + h - 28 * s - legSwing, 14 * s, 28 * s + legSwing);
+    }
+
+    // Körper
+    const bodyH = sliding ? h * 0.5 : h * 0.55;
+    const bodyY = y + (sliding ? 0 : 18 * s);
+    const bg = c.createLinearGradient(0, bodyY, 0, bodyY + bodyH);
+    bg.addColorStop(0, col.body);
+    bg.addColorStop(1, col.bodyDark);
+    c.fillStyle = bg;
+    c.fillRect(x, bodyY, w, bodyH);
+
+    // Arme
+    if (!sliding) {
+      const armSwing = Math.sin(f * 0.35) * 8 * s;
+      c.fillStyle = col.body;
+      c.fillRect(x - 6 * s, bodyY + 8 * s - armSwing, 10 * s, bodyH * 0.5);
+      c.fillRect(x + w - 4 * s, bodyY + 8 * s + armSwing, 10 * s, bodyH * 0.5);
+    }
+
+    return { bodyH, bodyY };
+  }
+
+  // --- Runner (Default) ---
+  function drawSkinRunner(c, x, y, w, h, s, f, sliding) {
+    const col = getSkin("runner").colors;
+    const { bodyY } = drawSkinBase(c, x, y, w, h, s, f, sliding, col);
+
+    // Rucksack
+    c.fillStyle = col.accent;
+    c.fillRect(x + w * 0.25, bodyY + 4 * s, w * 0.5, h * 0.33);
+
+    if (!sliding) {
+      const cx = x + w / 2;
+      // Haut
+      c.fillStyle = "#f1c27d";
+      c.beginPath();
+      c.arc(cx, y + 14 * s, 14 * s, 0, Math.PI * 2);
+      c.fill();
+      // Mütze
+      c.fillStyle = col.pants;
+      c.beginPath();
+      c.arc(cx, y + 10 * s, 15 * s, Math.PI, 0);
+      c.fill();
+      c.fillRect(cx - 15 * s, y + 8 * s, 30 * s, 4 * s);
+      // Augen
+      c.fillStyle = "#000";
+      c.fillRect(cx - 6 * s, y + 14 * s, 3 * s, 3 * s);
+      c.fillRect(cx + 3 * s, y + 14 * s, 3 * s, 3 * s);
+    }
+  }
+
+  // --- Ninja ---
+  function drawSkinNinja(c, x, y, w, h, s, f, sliding) {
+    const col = getSkin("ninja").colors;
+    const { bodyY } = drawSkinBase(c, x, y, w, h, s, f, sliding, col);
+
+    // Gürtel
+    c.fillStyle = col.accent;
+    c.fillRect(x, bodyY + h * 0.22, w, 4 * s);
+
+    if (!sliding) {
+      const cx = x + w / 2;
+      // Maske (dunkel, Rund)
+      c.fillStyle = col.body;
+      c.beginPath();
+      c.arc(cx, y + 14 * s, 14 * s, 0, Math.PI * 2);
+      c.fill();
+      // Stirnband
+      c.fillStyle = col.accent;
+      c.fillRect(cx - 15 * s, y + 11 * s, 30 * s, 4 * s);
+      // Stirnband-Enden (flattern)
+      const flap = Math.sin(f * 0.3) * 3 * s;
+      c.beginPath();
+      c.moveTo(cx + 14 * s, y + 12 * s);
+      c.lineTo(cx + 24 * s, y + 10 * s + flap);
+      c.lineTo(cx + 24 * s, y + 16 * s + flap);
+      c.closePath();
+      c.fill();
+      // Augen (weiß, scharf)
+      c.fillStyle = "#fff";
+      c.fillRect(cx - 8 * s, y + 15 * s, 5 * s, 2 * s);
+      c.fillRect(cx + 3 * s, y + 15 * s, 5 * s, 2 * s);
+    }
+  }
+
+  // --- Astronaut ---
+  function drawSkinAstronaut(c, x, y, w, h, s, f, sliding) {
+    const col = getSkin("astro").colors;
+    const { bodyY } = drawSkinBase(c, x, y, w, h, s, f, sliding, col);
+
+    // Brust-Panel
+    c.fillStyle = col.bodyDark;
+    c.fillRect(x + w * 0.3, bodyY + 6 * s, w * 0.4, h * 0.22);
+    // Knöpfe
+    c.fillStyle = col.accent;
+    c.beginPath(); c.arc(x + w * 0.4, bodyY + 14 * s, 2 * s, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(x + w * 0.5, bodyY + 14 * s, 2 * s, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(x + w * 0.6, bodyY + 14 * s, 2 * s, 0, Math.PI * 2); c.fill();
+
+    if (!sliding) {
+      const cx = x + w / 2;
+      // Helm (rund, grau)
+      c.fillStyle = col.body;
+      c.beginPath();
+      c.arc(cx, y + 14 * s, 17 * s, 0, Math.PI * 2);
+      c.fill();
+      // Visier (Glas)
+      const vg = c.createLinearGradient(cx - 12 * s, y + 8 * s, cx + 12 * s, y + 20 * s);
+      vg.addColorStop(0, "#2a1a5a");
+      vg.addColorStop(0.5, "#4a8aff");
+      vg.addColorStop(1, "#ff9a3c");
+      c.fillStyle = vg;
+      c.beginPath();
+      c.ellipse(cx, y + 14 * s, 12 * s, 9 * s, 0, 0, Math.PI * 2);
+      c.fill();
+      // Reflex
+      c.fillStyle = "rgba(255,255,255,0.6)";
+      c.beginPath();
+      c.ellipse(cx - 5 * s, y + 11 * s, 3 * s, 2 * s, 0, 0, Math.PI * 2);
+      c.fill();
+    }
+  }
+
+  // --- Robot ---
+  function drawSkinRobot(c, x, y, w, h, s, f, sliding) {
+    const col = getSkin("robot").colors;
+    const { bodyY, bodyH } = drawSkinBase(c, x, y, w, h, s, f, sliding, col);
+
+    // Panel-Linien
+    c.strokeStyle = col.bodyDark;
+    c.lineWidth = 2 * s;
+    c.strokeRect(x + 4, bodyY + 4 * s, w - 8, bodyH - 8 * s);
+    // Reaktor-Kern (glühend)
+    const glow = Math.sin(f * 0.15) * 0.3 + 0.7;
+    c.fillStyle = col.accent;
+    c.globalAlpha = glow;
+    c.beginPath();
+    c.arc(x + w / 2, bodyY + bodyH * 0.45, 6 * s, 0, Math.PI * 2);
+    c.fill();
+    c.globalAlpha = 1;
+
+    if (!sliding) {
+      const cx = x + w / 2;
+      // Kopf (rechteckig)
+      c.fillStyle = col.body;
+      c.fillRect(cx - 14 * s, y + 4 * s, 28 * s, 22 * s);
+      c.strokeStyle = col.bodyDark;
+      c.strokeRect(cx - 14 * s, y + 4 * s, 28 * s, 22 * s);
+      // Antenne
+      c.fillStyle = col.bodyDark;
+      c.fillRect(cx - 1 * s, y - 2 * s, 2 * s, 6 * s);
+      c.fillStyle = col.accent;
+      c.beginPath();
+      c.arc(cx, y - 2 * s, 2 * s, 0, Math.PI * 2);
+      c.fill();
+      // LED-Augen (glühend)
+      c.fillStyle = col.accent;
+      c.globalAlpha = glow;
+      c.fillRect(cx - 9 * s, y + 13 * s, 6 * s, 4 * s);
+      c.fillRect(cx + 3 * s, y + 13 * s, 6 * s, 4 * s);
+      c.globalAlpha = 1;
+    }
+  }
+
+  // --- Knight ---
+  function drawSkinKnight(c, x, y, w, h, s, f, sliding) {
+    const col = getSkin("knight").colors;
+    const { bodyY, bodyH } = drawSkinBase(c, x, y, w, h, s, f, sliding, col);
+
+    // Rüstung-Glanz
+    const ag = c.createLinearGradient(x, bodyY, x + w, bodyY);
+    ag.addColorStop(0, "rgba(255,255,255,0.0)");
+    ag.addColorStop(0.5, "rgba(255,255,255,0.35)");
+    ag.addColorStop(1, "rgba(255,255,255,0.0)");
+    c.fillStyle = ag;
+    c.fillRect(x, bodyY, w, bodyH);
+    // Wappen
+    c.fillStyle = col.accent;
+    c.beginPath();
+    c.moveTo(x + w / 2, bodyY + 8 * s);
+    c.lineTo(x + w / 2 + 8 * s, bodyY + 16 * s);
+    c.lineTo(x + w / 2, bodyY + 26 * s);
+    c.lineTo(x + w / 2 - 8 * s, bodyY + 16 * s);
+    c.closePath();
+    c.fill();
+
+    if (!sliding) {
+      const cx = x + w / 2;
+      // Helm
+      c.fillStyle = col.body;
+      c.beginPath();
+      c.arc(cx, y + 14 * s, 15 * s, 0, Math.PI * 2);
+      c.fill();
+      c.fillStyle = col.bodyDark;
+      c.fillRect(cx - 15 * s, y + 14 * s, 30 * s, 12 * s);
+      // Visierschlitz
+      c.fillStyle = "#000";
+      c.fillRect(cx - 10 * s, y + 15 * s, 20 * s, 3 * s);
+      // Federbusch (Plume)
+      c.fillStyle = col.accent;
+      const plumeWave = Math.sin(f * 0.25) * 2 * s;
+      c.beginPath();
+      c.moveTo(cx, y + 2 * s);
+      c.quadraticCurveTo(cx + 10 * s + plumeWave, y - 6 * s, cx + 14 * s, y + 6 * s);
+      c.quadraticCurveTo(cx + 6 * s, y + 4 * s, cx, y + 10 * s);
+      c.closePath();
+      c.fill();
+    }
+  }
+
+  // --- Wizard ---
+  function drawSkinWizard(c, x, y, w, h, s, f, sliding) {
+    const col = getSkin("wizard").colors;
+    const { bodyY, bodyH } = drawSkinBase(c, x, y, w, h, s, f, sliding, col);
+
+    // Sterne auf der Robe
+    c.fillStyle = col.accent;
+    for (const star of [[0.25, 0.2], [0.65, 0.4], [0.4, 0.6]]) {
+      const sx = x + w * star[0];
+      const sy = bodyY + bodyH * star[1];
+      drawStar(c, sx, sy, 3 * s);
+    }
+
+    if (!sliding) {
+      const cx = x + w / 2;
+      // Gesicht
+      c.fillStyle = "#f1c27d";
+      c.beginPath();
+      c.arc(cx, y + 16 * s, 13 * s, 0, Math.PI * 2);
+      c.fill();
+      // Bart
+      c.fillStyle = "#eee";
+      c.beginPath();
+      c.moveTo(cx - 10 * s, y + 18 * s);
+      c.quadraticCurveTo(cx, y + 32 * s, cx + 10 * s, y + 18 * s);
+      c.quadraticCurveTo(cx, y + 24 * s, cx - 10 * s, y + 18 * s);
+      c.fill();
+      // Augen
+      c.fillStyle = "#000";
+      c.fillRect(cx - 5 * s, y + 15 * s, 2 * s, 2 * s);
+      c.fillRect(cx + 3 * s, y + 15 * s, 2 * s, 2 * s);
+      // Spitzer Hut
+      c.fillStyle = col.body;
+      c.beginPath();
+      c.moveTo(cx - 16 * s, y + 6 * s);
+      c.lineTo(cx + 16 * s, y + 6 * s);
+      c.lineTo(cx + 2 * s, y - 22 * s);
+      c.closePath();
+      c.fill();
+      // Hutband
+      c.fillStyle = col.accent;
+      c.fillRect(cx - 16 * s, y + 5 * s, 32 * s, 3 * s);
+      // Stern am Hut
+      drawStar(c, cx - 4 * s, y - 6 * s, 3 * s);
+    }
+  }
+
+  function drawStar(c, cx, cy, r) {
+    c.save();
+    c.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const a = (i * Math.PI) / 5 - Math.PI / 2;
+      const rr = i % 2 === 0 ? r : r * 0.4;
+      const px = cx + Math.cos(a) * rr;
+      const py = cy + Math.sin(a) * rr;
+      if (i === 0) c.moveTo(px, py);
+      else c.lineTo(px, py);
+    }
+    c.closePath();
+    c.fill();
+    c.restore();
   }
 
   function drawParticles() {
