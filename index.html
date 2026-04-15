@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0b1020" />
+  <title>Endless Runner – Subway Style</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="game-wrapper">
+    <canvas id="game" width="480" height="800"></canvas>
+
+    <div id="hud">
+      <div class="hud-row">
+        <div class="hud-box">
+          <span class="hud-label">Score</span>
+          <span id="score">0</span>
+        </div>
+        <div class="hud-box">
+          <span class="hud-label">Coins</span>
+          <span id="coins">0</span>
+        </div>
+        <div class="hud-box">
+          <span class="hud-label">Best</span>
+          <span id="best">0</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="start-screen" class="overlay">
+      <h1>ENDLESS<br/>RUNNER</h1>
+      <p class="tag">Lauf so weit du kannst!</p>
+      <div class="controls">
+        <p><b>Steuerung:</b></p>
+        <p>← → oder A / D — Spur wechseln</p>
+        <p>↑ / W / Leertaste — Springen</p>
+        <p>↓ / S — Rutschen</p>
+        <p class="mobile">Handy: Wische in jede Richtung</p>
+      </div>
+      <button id="start-btn">START</button>
+    </div>
+
+    <div id="game-over" class="overlay hidden">
+      <h1>GAME OVER</h1>
+      <p class="final">Score: <span id="final-score">0</span></p>
+      <p class="final">Coins: <span id="final-coins">0</span></p>
+      <p class="final">Best: <span id="final-best">0</span></p>
+      <button id="restart-btn">NOCHMAL</button>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
